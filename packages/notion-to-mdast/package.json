@@ -1,0 +1,22 @@
+{
+  "name": "notion-to-mdast",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.12.1",
+  "devDependencies": {
+    "@types/mdast": "^4.0.4",
+    "@types/unist": "^3.0.3",
+    "rolldown": "1.0.0-beta.14",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "unified": "^11.0.5"
+  }
+}
