@@ -2,9 +2,10 @@
   "name": "notion-to-mdast",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "rolldown build -c rolldown.config.mjs"
   },
   "keywords": [],
   "author": "",
@@ -14,9 +15,11 @@
     "@types/mdast": "^4.0.4",
     "@types/unist": "^3.0.3",
     "rolldown": "1.0.0-beta.14",
+    "rolldown-plugin-dts": "^0.13.9",
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "unified": "^11.0.5"
+    "unified": "^11.0.5",
+    "zod": "^3.25.58"
   }
 }

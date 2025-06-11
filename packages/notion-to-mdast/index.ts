@@ -1,6 +1,8 @@
 import type { Root } from 'mdast';
 import { ListBlockChildrenResponse } from '../../utils/notion';
 
+import '../../utils/type.d.ts';
+
 import { transformToMdast } from './src/transform';
 
 export default function NotionParser(data: {}): Root {
