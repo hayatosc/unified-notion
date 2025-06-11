@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { BulletedListItemBlock, NumberedListItemBlock, RichText } from '../../../utils/notion';
+import type { BulletedListItemBlock, NumberedListItemBlock, RichText, ToDoBlock } from '../../../utils/notion';
 import { ListTransform, richTextTransform } from './transform';
 
-const createBulletedListItem = (text: string, children?: (BulletedListItemBlock | NumberedListItemBlock)[]): BulletedListItemBlock => ({
+const createBulletedListItem = (text: string, children?: (BulletedListItemBlock | NumberedListItemBlock | ToDoBlock)[]): BulletedListItemBlock => ({
   object: 'block',
   id: 'test-id',
   parent: { type: 'page_id', page_id: 'test-page-id' },
@@ -35,7 +35,7 @@ const createBulletedListItem = (text: string, children?: (BulletedListItemBlock 
   },
 });
 
-const createNumberedListItem = (text: string, children?: (BulletedListItemBlock | NumberedListItemBlock)[]): NumberedListItemBlock => ({
+const createNumberedListItem = (text: string, children?: (BulletedListItemBlock | NumberedListItemBlock | ToDoBlock)[]): NumberedListItemBlock => ({
   object: 'block',
   id: 'test-id',
   parent: { type: 'page_id', page_id: 'test-page-id' },
@@ -63,6 +63,44 @@ const createNumberedListItem = (text: string, children?: (BulletedListItemBlock 
         href: null,
       },
     ],
+    color: 'default',
+    children,
+  },
+});
+
+const createToDoItem = (
+  text: string,
+  checked: boolean = false,
+  children?: (BulletedListItemBlock | NumberedListItemBlock | ToDoBlock)[]
+): ToDoBlock => ({
+  object: 'block',
+  id: 'test-id',
+  parent: { type: 'page_id', page_id: 'test-page-id' },
+  created_time: '2023-01-01T00:00:00.000Z',
+  created_by: { object: 'user', id: 'test-user-id' },
+  last_edited_time: '2023-01-01T00:00:00.000Z',
+  last_edited_by: { object: 'user', id: 'test-user-id' },
+  has_children: !!children && children.length > 0,
+  archived: false,
+  type: 'to_do',
+  to_do: {
+    rich_text: [
+      {
+        type: 'text',
+        text: { content: text, link: null },
+        annotations: {
+          bold: false,
+          italic: false,
+          strikethrough: false,
+          underline: false,
+          code: false,
+          color: 'default',
+        },
+        plain_text: text,
+        href: null,
+      },
+    ],
+    checked,
     color: 'default',
     children,
   },
@@ -98,7 +136,7 @@ describe('ListTransform', () => {
   it('should transform simple bulleted list items', () => {
     const listItems = [createBulletedListItem('First item'), createBulletedListItem('Second item'), createBulletedListItem('Third item')];
 
-    const result = ListTransform(listItems, false);
+    const result = ListTransform(listItems, false, false);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
@@ -139,7 +177,7 @@ describe('ListTransform', () => {
   it('should transform simple numbered list items', () => {
     const listItems = [createNumberedListItem('First numbered item'), createNumberedListItem('Second numbered item')];
 
-    const result = ListTransform(listItems, true);
+    const result = ListTransform(listItems, true, false);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
@@ -168,12 +206,89 @@ describe('ListTransform', () => {
     });
   });
 
+  it('should transform to-do items as task lists', () => {
+    const todoItems = [
+      createToDoItem('Unchecked task', false),
+      createToDoItem('Checked task', true),
+      createToDoItem('Another unchecked task', false),
+    ];
+
+    const result = ListTransform(todoItems, false, true);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      type: 'list',
+      ordered: false,
+      children: [
+        {
+          type: 'listItem',
+          checked: false,
+          children: [
+            {
+              type: 'paragraph',
+              children: [{ type: 'text', value: 'Unchecked task' }],
+            },
+          ],
+        },
+        {
+          type: 'listItem',
+          checked: true,
+          children: [
+            {
+              type: 'paragraph',
+              children: [{ type: 'text', value: 'Checked task' }],
+            },
+          ],
+        },
+        {
+          type: 'listItem',
+          checked: false,
+          children: [
+            {
+              type: 'paragraph',
+              children: [{ type: 'text', value: 'Another unchecked task' }],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('should handle nested to-do items', () => {
+    const nestedTodoItems = [createToDoItem('Nested task 1', false), createToDoItem('Nested task 2', true)];
+
+    const todoItems = [createToDoItem('Parent task', false, nestedTodoItems), createToDoItem('Another parent task', true)];
+
+    const result = ListTransform(todoItems, false, true);
+
+    expect(result).toHaveLength(1);
+    const listNode = result[0] as any;
+    expect(listNode.type).toBe('list');
+    expect(listNode.ordered).toBe(false);
+    expect(listNode.children).toHaveLength(2);
+
+    // First item should have nested tasks
+    expect(listNode.children[0].checked).toBe(false);
+    expect(listNode.children[0].children).toHaveLength(2); // paragraph + nested list
+
+    const nestedList = listNode.children[0].children[1];
+    expect(nestedList.type).toBe('list');
+    expect(nestedList.ordered).toBe(false);
+    expect(nestedList.children).toHaveLength(2);
+    expect(nestedList.children[0].checked).toBe(false);
+    expect(nestedList.children[1].checked).toBe(true);
+
+    // Second item should be a simple checked task
+    expect(listNode.children[1].checked).toBe(true);
+    expect(listNode.children[1].children).toHaveLength(1); // only paragraph
+  });
+
   it('should handle nested list items', () => {
     const nestedItems = [createBulletedListItem('Nested item 1'), createBulletedListItem('Nested item 2')];
 
     const listItems = [createBulletedListItem('Parent item 1', nestedItems), createBulletedListItem('Parent item 2')];
 
-    const result = ListTransform(listItems, false);
+    const result = ListTransform(listItems, false, false);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
@@ -231,7 +346,7 @@ describe('ListTransform', () => {
 
     const listItems = [createBulletedListItem('Bulleted parent', nestedNumberedItems)];
 
-    const result = ListTransform(listItems, false);
+    const result = ListTransform(listItems, false, false);
 
     expect(result).toHaveLength(1);
     const listNode = result[0] as any;
@@ -245,7 +360,7 @@ describe('ListTransform', () => {
   });
 
   it('should handle empty list', () => {
-    const result = ListTransform([], false);
+    const result = ListTransform([], false, false);
     expect(result).toHaveLength(0);
   });
 
@@ -256,7 +371,7 @@ describe('ListTransform', () => {
 
     const listItems = [createBulletedListItem('Root level', firstLevelNested)];
 
-    const result = ListTransform(listItems, false);
+    const result = ListTransform(listItems, false, false);
 
     expect(result).toHaveLength(1);
     const listNode = result[0] as any;
@@ -363,7 +478,7 @@ describe('richTextTransform', () => {
   it('should handle non-text type rich text elements', () => {
     const richText: RichText[] = [
       {
-        type: 'mention' as any, // 実際のRichTextの型定義に合わせて調整が必要かもしれません
+        type: 'mention',
         plain_text: 'Mention text',
       } as RichText,
     ];
